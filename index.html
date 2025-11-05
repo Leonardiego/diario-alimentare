@@ -33,7 +33,7 @@
 <body>
   <header class="sticky top-0 z-10 border-b" style="background:rgba(15,23,42,.8); backdrop-filter:blur(6px); border-color: var(--border)">
     <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-      <h1 class="text-xl sm:text-2xl font-semibold">🥗 Diario Alimentare</h1>
+      <h1 class="text-xl sm:text-2xl font-semibold">🥗 Diario Alimentare <span id="titleUser" class="text-sm muted ml-2"></span></h1>
       <div class="flex items-center gap-2">
         <button id="themeToggle" class="btn">Tema</button>
         <button id="resetAllBtn" class="btn btn-danger">Reset totale</button>
@@ -137,6 +137,7 @@
       <div class="card p-4">
         <div class="flex items-center justify-between gap-2">
           <h2 class="font-semibold">💧 Idratazione giornaliera</h2>
+          <span id="hdrWaterUser" class="pill hidden"></span>
           <span id="waterTotal" class="chip">0 ml</span>
           <button id="resetWaterBtn" class="btn btn-danger">Azzera</button>
         </div>
@@ -157,6 +158,7 @@
     <section class="mt-6 card p-4">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <h2 class="font-semibold">📒 Riepilogo del giorno</h2>
+        <span id="hdrTodayUser" class="pill hidden"></span>
         <div class="flex items-center gap-2">
           <span id="kcalDay" class="chip">0 kcal</span>
         </div>
@@ -172,6 +174,7 @@
     <section class="mt-6 card p-4">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <h2 class="font-semibold">📅 Giorno precedente</h2>
+        <span id="hdrPrevUser" class="pill hidden"></span>
         <div class="pill" id="prevDateLabel">—</div>
       </div>
       <div class="mt-3 overflow-auto">
@@ -203,6 +206,7 @@
     <!-- ESPORTAZIONE -->
     <section class="mt-6 card p-4">
       <h2 class="font-semibold">📤 Esporta dati</h2>
+      <span id="hdrExportUser" class="pill hidden"></span>
       <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div>
           <label class="block text-sm mb-1" for="exportFrom">Da</label>
@@ -269,6 +273,8 @@
     el('date').value = todayStr();
     ;['meal','unit','presetPortion','food','qty','notes','gramsOverride'].forEach(id=>{ const n=el(id); if(n) n.value=''; });
     if(el('userName')){ el('userName').value = (db.profile?.name)||''; el('userName').addEventListener('input', saveName); }
+    // Applica subito il nome alle intestazioni
+    applyUserToSections();
 
     // === Eventi UI ===
     document.querySelectorAll('[data-water]').forEach(btn=>btn.addEventListener('click',()=>addWater(parseInt(btn.dataset.water,10))));
@@ -286,7 +292,21 @@
     el('date').addEventListener('change', ()=>{ renderDay(); renderPrevDay(); });
 
     // === Helpers ===
-    function saveName(){ db.profile=db.profile||{}; db.profile.name=(el('userName').value||'').trim(); store.save(db); }
+    function applyUserToSections(){
+      const name=(db.profile?.name||'').trim();
+      const titleUser=el('titleUser'); if(titleUser) titleUser.textContent = name ? `· ${name}` : '';
+      ['hdrWaterUser','hdrTodayUser','hdrPrevUser','hdrExportUser'].forEach(id=>{
+        const n=el(id); if(!n) return;
+        if(name){ n.textContent=name; n.classList.remove('hidden'); }
+        else { n.textContent=''; n.classList.add('hidden'); }
+      });
+    }
+    function saveName(){
+      db.profile=db.profile||{};
+      db.profile.name=(el('userName').value||'').trim();
+      store.save(db);
+      applyUserToSections();
+    }; db.profile.name=(el('userName').value||'').trim(); store.save(db); }
     function calcKcal(kcalPer100, grams){ if(typeof kcalPer100!=='number'||typeof grams!=='number') return null; return Number(((grams/100)*kcalPer100).toFixed(1)); }
     function csvQuote(field){ const s=String(field??''); return /[",\n;]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
     function buildCsv(rows, sep=';'){ return rows.map(r=>r.map(csvQuote).join(sep)).join('\n'); }
