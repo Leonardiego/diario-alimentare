@@ -39,6 +39,7 @@
           <div>
             <label class="block text-sm mb-1" for="meal">Pasto</label>
             <select id="meal" class="input">
+              <option value="" selected>— Seleziona —</option>
               <option>Colazione</option>
               <option>Spuntino mattutino</option>
               <option>Pranzo</option>
@@ -63,6 +64,7 @@
             <div>
               <label class="block text-sm mb-1" for="unit">Unità</label>
               <select id="unit" class="input">
+                <option value="" selected>— Seleziona —</option>
                 <option>g</option>
                 <option>ml</option>
                 <option>porzione</option>
@@ -224,6 +226,10 @@
 
     // Set default date
     el('date').value = todayStr();
+    // Vuota le selezioni iniziali (solo data è precompilata)
+    if(el('meal')) el('meal').value = '';
+    if(el('unit')) el('unit').value = '';
+    if(el('presetPortion')) el('presetPortion').value = '';
 
     // === Eventi UI ===
     document.querySelectorAll('[data-water]').forEach(btn => btn.addEventListener('click', () => addWater(parseInt(btn.dataset.water,10))));
@@ -310,8 +316,10 @@
       const unit = el('unit').value;
       const notes = el('notes').value.trim();
 
+      if(!meal){ alert('Seleziona il pasto.'); return; }
       if(!food){ alert('Inserisci un alimento.'); return; }
       if(isNaN(qty) || qty <= 0){ alert('Inserisci una quantità valida.'); return; }
+      if(!unit){ alert('Seleziona l\'unità di misura.'); return; }
 
       let gramsEq = null;
       if(unit === 'g' || unit === 'ml'){
@@ -564,6 +572,9 @@
 
         // escapeHtml
         console.assert(escapeHtml('<>&"') === '&lt;&gt;&amp;&quot;', 'escapeHtml mapping');
+
+        // Inizializzazione form: solo data è valorizzata
+        console.assert(el('meal').value==='' && el('unit').value==='' && el('presetPortion').value==='', 'Campi iniziali vuoti');
 
         // Badge OK
         const ft = document.querySelector('footer');
