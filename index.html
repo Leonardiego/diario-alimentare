@@ -4,24 +4,61 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Diario Alimentare</title>
+  <script>
+    // Tailwind via CDN (caricato dopo). Qui posso solo definire config minima se servisse.
+    window.tailwind = window.tailwind || {}; // placeholder
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🥗</text></svg>">
   <style>
-    /* Nota: con CDN Tailwind le utility sono via classi; qui sotto classi semplici CSS. */
-    .input { width: 100%; border-radius: 0.75rem; border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; }
-    .btn { border-radius: 0.75rem; padding: 0.5rem 1rem; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+    :root {
+      --bg: #0b1220;           /* sfondo scuro bluastro */
+      --text: #e6edf6;         /* testo chiaro */
+      --muted: #93a4bc;        /* testo secondario */
+      --card: #0f172a;         /* pannelli */
+      --border: #1f2a44;       /* bordi */
+      --chip: #111827;         /* chip scuro */
+      --chip-text: #e5e7eb;
+      --primary: #16a34a;      /* verde */
+      --primary-contrast: #07140d;
+      --btn-bg: #111827;
+      --btn-text: #e5e7eb;
+      --btn-border: #26334d;
+      --btn-hover: #0b1324;
+      --danger: #ef4444;
+    }
+    /* Light theme (non predefinita, ma disponibile) */
+    .theme-light {
+      --bg:#f8fafc; --text:#0f172a; --muted:#475569; --card:#ffffff; --border:#e2e8f0; --chip:#0f172a; --chip-text:#ffffff; --primary:#0f172a; --primary-contrast:#ffffff; --btn-bg:#ffffff; --btn-text:#0f172a; --btn-border:#cbd5e1; --btn-hover:#f1f5f9; --danger:#dc2626;
+    }
+    html, body { height: 100%; }
+    body { background: var(--bg); color: var(--text); }
+    .input { width: 100%; border-radius: 0.75rem; border: 1px solid var(--border); padding: 0.5rem 0.75rem; background: transparent; color: var(--text); }
+    .input::placeholder { color: var(--muted); }
+    select.input option { color: #0f172a; }
+    .btn { border-radius: 0.75rem; padding: 0.5rem 1rem; border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-text); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+    .btn:hover { background: var(--btn-hover); }
     .btn:active { transform: scale(.98); }
-    .btn-primary { background:#0f172a; color:#fff; border-color:#0f172a; }
-    .card { border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-    .pill { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background:#f1f5f9; }
-    .chip { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background:#0f172a; color:#fff; }
+    .btn-primary { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+    .btn-primary:hover { filter: brightness(0.95); }
+    .btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+    .card { border-radius: 1rem; border: 1px solid var(--border); background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+    .pill { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background: rgba(255,255,255,0.06); color: var(--text); }
+    .chip { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background: var(--chip); color: var(--chip-text); }
+    .muted { color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
+    th { text-align: left; font-weight: 600; }
+    tfoot td { font-weight: 700; }
+    a.link { color: #60a5fa; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-slate-200">
+<body>
+  <header class="sticky top-0 z-10 border-b" style="background:rgba(15,23,42,.8); backdrop-filter:blur(6px); border-color: var(--border)">
     <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
       <h1 class="text-xl sm:text-2xl font-semibold">🥗 Diario Alimentare</h1>
       <div class="flex items-center gap-2">
+        <button id="themeToggle" class="btn">Tema</button>
         <button id="exportCsvBtn" class="btn btn-primary">Esporta Excel/CSV</button>
       </div>
     </div>
@@ -34,11 +71,11 @@
         <div class="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div class="flex-1">
             <label class="block text-sm mb-1" for="date">Data</label>
-            <input class="input" type="date" id="date" />
+            <input class="input" type="date" id="date" autocomplete="off" />
           </div>
           <div>
             <label class="block text-sm mb-1" for="meal">Pasto</label>
-            <select id="meal" class="input">
+            <select id="meal" class="input" autocomplete="off">
               <option value="" selected>— Seleziona —</option>
               <option>Colazione</option>
               <option>Spuntino mattutino</option>
@@ -53,17 +90,17 @@
         <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-sm mb-1" for="food">Alimento</label>
-            <input list="foodList" id="food" class="input" placeholder="Es. Mela, Pane integrale, Yogurt bianco…" />
+            <input list="foodList" id="food" class="input" placeholder="Es. Mela, Pane integrale, Yogurt bianco…" autocomplete="off" />
             <datalist id="foodList"></datalist>
           </div>
           <div class="grid grid-cols-3 gap-2">
             <div class="col-span-2">
               <label class="block text-sm mb-1" for="qty">Quantità</label>
-              <input id="qty" type="number" step="0.1" class="input" placeholder="es. 150"/>
+              <input id="qty" type="number" step="0.1" class="input" placeholder="es. 150" autocomplete="off"/>
             </div>
             <div>
               <label class="block text-sm mb-1" for="unit">Unità</label>
-              <select id="unit" class="input">
+              <select id="unit" class="input" autocomplete="off">
                 <option value="" selected>— Seleziona —</option>
                 <option>g</option>
                 <option>ml</option>
@@ -91,8 +128,8 @@
           </div>
           <div>
             <label class="block text-sm mb-1" for="gramsOverride">g/ml per kcal (stima, modificabile)</label>
-            <input id="gramsOverride" type="number" step="1" class="input" placeholder="Es. 30" />
-            <p class="text-xs text-slate-500 mt-1">Se compilato, userò questo valore per il calcolo kcal quando l'unità non è g/ml.</p>
+            <input id="gramsOverride" type="number" step="1" class="input" placeholder="Es. 30" autocomplete="off" />
+            <p class="text-xs muted mt-1">Se compilato, userò questo valore per il calcolo kcal quando l'unità non è g/ml.</p>
           </div>
         </div>
 
@@ -112,7 +149,7 @@
         <div class="flex items-center justify-between gap-2">
           <h2 class="font-semibold">💧 Idratazione giornaliera</h2>
           <span id="waterTotal" class="chip">0 ml</span>
-          <button id="resetWaterBtn" class="btn">Azzera</button>
+          <button id="resetWaterBtn" class="btn btn-danger">Azzera</button>
         </div>
         <div class="mt-3 grid grid-cols-3 gap-2">
           <button data-water="250" class="btn">+250 ml</button>
@@ -123,7 +160,7 @@
           <input id="waterCustom" type="number" class="input" placeholder="Aggiungi ml…" />
           <button id="addWaterBtn" class="btn btn-primary">Aggiungi</button>
         </div>
-        <div class="mt-3 text-sm text-slate-600">Suggerimento: punta a ~2000 ml/giorno (personalizza con la tua nutrizionista).</div>
+        <div class="mt-3 text-sm muted">Suggerimento: punta a ~2000 ml/giorno (personalizza con la tua nutrizionista).</div>
       </div>
     </section>
 
@@ -136,10 +173,43 @@
         </div>
         <div class="flex gap-2">
           <button id="copyDayBtn" class="btn">Duplica su un altro giorno</button>
-          <button id="deleteDayBtn" class="btn">Svuota giorno</button>
+          <button id="deleteDayBtn" class="btn btn-danger">Svuota giorno</button>
         </div>
       </div>
       <div id="daySummary" class="mt-4 space-y-4"></div>
+    </section>
+
+    <!-- GIORNO PRECEDENTE (tabella) -->
+    <section class="mt-6 card p-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <h2 class="font-semibold">📅 Giorno precedente</h2>
+        <div class="pill" id="prevDateLabel">—</div>
+      </div>
+      <div class="mt-3 overflow-auto">
+        <table id="prevTable">
+          <thead>
+            <tr>
+              <th>Pasto</th>
+              <th>Alimento</th>
+              <th>Quantità</th>
+              <th>kcal (stima)</th>
+            </tr>
+          </thead>
+          <tbody id="prevTbody">
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3">Totale kcal</td>
+              <td id="prevKcalTot">0</td>
+            </tr>
+            <tr>
+              <td colspan="3">Idratazione totale</td>
+              <td id="prevWaterTot">0 ml</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div id="prevEmpty" class="mt-2 muted"></div>
     </section>
 
     <!-- ESPORTAZIONE -->
@@ -158,19 +228,27 @@
           <button id="doExportCsv" class="btn btn-primary w-full">Scarica CSV (Excel)</button>
         </div>
       </div>
-      <p class="mt-2 text-sm text-slate-600">Il file CSV è compatibile con Excel e Google Fogli. Condividilo con la nutrizionista.</p>
+      <p class="mt-2 text-sm muted">Il file CSV è compatibile con Excel e Google Fogli. Condividilo con la nutrizionista.</p>
     </section>
 
-    <footer class="py-8 text-center text-xs text-slate-500">
+    <footer class="py-8 text-center text-xs muted">
       <p>100% locale sul tuo dispositivo. Nessun login, nessun costo.</p>
     </footer>
   </main>
 
   <script>
+    // === Tema: dark di default, toggle e persistenza ===
+    const THEME_KEY = 'diario_theme';
+    function applyTheme(t){
+      if(t==='light') document.documentElement.classList.add('theme-light');
+      else document.documentElement.classList.remove('theme-light');
+    }
+    const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
+    applyTheme(savedTheme);
+
     // === Utility di persistenza ===
     const KEY = 'diario_alimentare_v1';
-    // days[yyyy-mm-dd] = { entries: [...], waterMl: number }
-    const defaultData = { days: {}, kcalCache: {} }; // kcalCache[name] = { kcalPer100g, timestamp }
+    const defaultData = { days: {}, kcalCache: {} };
 
     const store = {
       load() { try { return JSON.parse(localStorage.getItem(KEY)) || structuredClone(defaultData); } catch { return structuredClone(defaultData); } },
@@ -184,52 +262,45 @@
     const el = id => document.getElementById(id);
     const db = store.load();
 
+    // Toggle tema
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      const current = localStorage.getItem(THEME_KEY) || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    });
+
     // Precompilazione cibi (in italiano)
     const FOODS = [
-      // Frutta
       'Mela','Banana','Arancia','Pera','Pompelmo','Uva','Fragole','Lamponi','Mirtilli','Ciliegie','Ananas','Kiwi','Pesca','Albicocca','Susina','Melone','Anguria','Fichi','Melagrana','Avocado',
-      // Verdura
       'Insalata','Rucola','Spinaci','Cavolo','Cavolfiore','Broccoli','Zucchine','Melanzane','Peperoni','Pomodori','Carote','Sedano','Finocchi','Cetrioli','Patate','Patate dolci','Cipolla','Aglio','Funghi','Asparagi','Carciofi','Bietole','Radicchio','Zucca',
-      // Cereali e derivati
       'Pane bianco','Pane integrale','Pane ai cereali','Pane di segale','Piadina','Crackers','Grissini','Fette biscottate','Pasta','Pasta integrale','Riso','Riso integrale','Farro','Orzo','Cous cous','Quinoa','Avena fiocchi','Gnocchi','Polenta',
-      // Latticini
       'Latte vaccino','Latte senza lattosio','Yogurt bianco','Yogurt greco','Kefir','Ricotta','Mozzarella','Scamorza','Crescenza','Parmigiano Reggiano','Grana Padano','Pecorino','Fiocchi di latte',
-      // Proteine animali
       'Uova','Prosciutto cotto','Prosciutto crudo','Bresaola','Tacchino affettato','Pollo petto','Tacchino petto','Manzo','Carne macinata','Vitello','Maiale','Salmone','Tonno','Merluzzo','Orata','Branzino','Sgombro','Uova sode',
-      // Legumi e vegetali proteici
       'Lenticchie','Ceci','Fagioli borlotti','Fagioli cannellini','Piselli','Soia edamame','Tofu','Tempeh','Seitan',
-      // Frutta secca e semi
       'Mandorle','Nocciole','Noci','Pistacchi','Arachidi','Anacardi','Semi di zucca','Semi di girasole','Semi di lino','Burro di arachidi','Tahina',
-      // Condimenti e salse
       'Olio extravergine di oliva','Olio di semi','Aceto balsamico','Aceto di mele','Succo di limone','Maionese','Ketchup','Senape','Salsa di soia','Pesto','Passata di pomodoro','Sughetto di pomodoro','Burro','Margarina',
-      // Dolci e snack
       'Cioccolato fondente','Cioccolato al latte','Biscotti','Cornetti','Miele','Marmellata','Gelato','Torta','Croissant integrale','Barretta ai cereali','Popcorn','Patatine','Crêpe',
-      // Colazione
       'Caffè espresso','Caffè americano','Cappuccino','Tè verde','Tè nero','Caffè orzo','Latte di soia','Latte di mandorla','Latte di avena','Yogurt alla frutta','Muesli','Cereali integrali',
-      // Bevande
-      'Acqua naturale','Acqua frizzante','Succo di frutta','Bevanda isotonica','Spremuta',
+      'Acqua naturale','Acqua frizzante','Succo di frutta','Bevanda isotonica','Spremuta'
     ];
 
-    // Preset porzioni (valore indicativo per kcal)
     const PRESETS = [
       { label: '1 fetta pane ≈ 30 g', unit: 'fetta', qty: 1, grams: 30 },
       { label: '1 tazza latte ≈ 250 ml', unit: 'tazza', qty: 1, grams: 250 },
       { label: '1 cucchiaio olio ≈ 10 ml', unit: 'cucchiaio', qty: 1, grams: 10 },
       { label: '1 cucchiaio riso crudo ≈ 15 g', unit: 'cucchiaio', qty: 1, grams: 15 },
       { label: '1 mela media ≈ 150 g', unit: 'unità', qty: 1, grams: 150 },
-      { label: '1 vasetto yogurt ≈ 125 g', unit: 'vasetto', qty: 1, grams: 125 },
+      { label: '1 vasetto yogurt ≈ 125 g', unit: 'vasetto', qty: 1, grams: 125 }
     ];
 
     // Popola datalist
     const foodList = document.getElementById('foodList');
     FOODS.forEach(f => { const o = document.createElement('option'); o.value = f; foodList.appendChild(o); });
 
-    // Set default date
+    // Set default date e reset campi
     el('date').value = todayStr();
-    // Vuota le selezioni iniziali (solo data è precompilata)
-    if(el('meal')) el('meal').value = '';
-    if(el('unit')) el('unit').value = '';
-    if(el('presetPortion')) el('presetPortion').value = '';
+    ['meal','unit','presetPortion','food','qty','notes','gramsOverride'].forEach(id => { const n=el(id); if(n) n.value=''; });
 
     // === Eventi UI ===
     document.querySelectorAll('[data-water]').forEach(btn => btn.addEventListener('click', () => addWater(parseInt(btn.dataset.water,10))));
@@ -248,11 +319,11 @@
     el('exportCsvBtn').addEventListener('click', () => {
       el('exportFrom').value = el('exportFrom').value || earliestDate() || todayStr();
       el('exportTo').value = el('exportTo').value || todayStr();
-      document.querySelector('section:nth-of-type(3)').scrollIntoView({behavior:'smooth'});
+      document.querySelector('section:nth-of-type(4)').scrollIntoView({behavior:'smooth'});
     });
 
     el('doExportCsv').addEventListener('click', exportCsv);
-    el('date').addEventListener('change', renderDay);
+    el('date').addEventListener('change', () => { renderDay(); renderPrevDay(); });
 
     // === Helpers ===
     function calcKcal(kcalPer100, grams){
@@ -262,7 +333,6 @@
 
     function csvQuote(field){
       const s = String(field ?? '');
-      // Quote se contiene virgolette, newline o separatore ;
       return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
     }
 
@@ -282,7 +352,6 @@
       } catch(e){ console.warn('Preset non valido', e); }
     }
 
-    // === Funzioni giornaliere ===
     function ensureDay(d){
       db.days[d] = db.days[d] || { entries: [], waterMl: 0 };
       return db.days[d];
@@ -294,6 +363,7 @@
       day.waterMl += ml;
       store.save(db);
       renderDay();
+      renderPrevDay();
     }
 
     function resetWater(){
@@ -304,6 +374,7 @@
         day.waterMl = 0;
         store.save(db);
         renderDay();
+        renderPrevDay();
       }
     }
 
@@ -345,14 +416,12 @@
       store.save(db);
       clearForm();
       renderDay();
+      renderPrevDay();
     }
 
     function clearForm(){
-      el('food').value = '';
-      el('qty').value = '';
-      el('notes').value = '';
-      el('gramsOverride').value = '';
-      el('presetPortion').value = '';
+      ['food','qty','notes','gramsOverride','presetPortion'].forEach(id => { const n=el(id); if(n) n.value=''; });
+      // NON tocchiamo data/meal/unit - lasciamo le selezioni all'utente
       el('food').focus();
     }
 
@@ -362,6 +431,7 @@
         delete db.days[d];
         store.save(db);
         renderDay();
+        renderPrevDay();
       }
     }
 
@@ -384,7 +454,7 @@
       const wrap = document.getElementById('daySummary');
       wrap.innerHTML = '';
       if(!day || (day.entries.length===0 && (day.waterMl||0)===0)){
-        wrap.innerHTML = '<div class="text-slate-500">Niente ancora oggi. Aggiungi un alimento o l\'acqua bevuta. 😊</div>';
+        wrap.innerHTML = '<div class="muted">Niente ancora oggi. Aggiungi un alimento o l\'acqua bevuta. 😊</div>';
         el('kcalDay').textContent = '0 kcal';
         return;
       }
@@ -401,7 +471,7 @@
             <div class="font-semibold">${meal}</div>
             <div class="pill">${list.length} elemento/i</div>
           </div>
-          <ul class="mt-2 divide-y divide-slate-200" id="list-${meal}"></ul>
+          <ul class="mt-2 divide-y" style="border-color: var(--border)" id="list-${meal}"></ul>
         `;
         wrap.appendChild(section);
 
@@ -409,24 +479,23 @@
         list.forEach(item => {
           const li = document.createElement('li');
           li.className = 'py-2 flex items-start justify-between gap-3';
-          const kcalTxt = (typeof item.kcal === 'number') ? `${item.kcal} kcal` : '<span class="text-slate-400">kcal n/d</span>';
+          const kcalTxt = (typeof item.kcal === 'number') ? `${item.kcal} kcal` : '<span class="muted">kcal n/d</span>';
           if(typeof item.kcal === 'number') dayKcal += item.kcal;
           li.innerHTML = `
             <div>
               <div class="font-medium">${item.food}</div>
-              <div class="text-sm text-slate-600">${item.qty} ${item.unit}${item.notes? ' · '+escapeHtml(item.notes): ''} · ${kcalTxt}</div>
-              ${item.kcalPer100? `<div class="text-xs text-slate-400">Fonte: Open Food Facts · ${item.kcalPer100} kcal/100g</div>`:''}
+              <div class="text-sm muted" style="color: var(--muted)">${item.qty} ${item.unit}${item.notes? ' · '+escapeHtml(item.notes): ''} · ${kcalTxt}</div>
+              ${item.kcalPer100? `<div class="text-xs muted">Fonte: Open Food Facts · ${item.kcalPer100} kcal/100g</div>`:''}
             </div>
             <div class="flex gap-2">
               <button class="btn" data-edit="${item.id}">Modifica</button>
-              <button class="btn" data-del="${item.id}">Elimina</button>
+              <button class="btn btn-danger" data-del="${item.id}">Elimina</button>
             </div>
           `;
           ul.appendChild(li);
         });
       });
 
-      // Water line
       const water = document.createElement('div');
       water.className = 'mt-2 text-sm';
       water.innerHTML = `💧 Acqua totale: <span class="font-medium">${day.waterMl} ml</span>`;
@@ -434,9 +503,47 @@
 
       el('kcalDay').textContent = `${Math.round(dayKcal)} kcal`;
 
-      // Bind edit/delete
       wrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => delEntry(btn.dataset.del)));
       wrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => editEntry(btn.dataset.edit)));
+    }
+
+    function prevDateStr(dStr){
+      const d = new Date(dStr + 'T00:00:00');
+      d.setDate(d.getDate()-1);
+      return d.toISOString().slice(0,10);
+    }
+
+    function renderPrevDay(){
+      const curr = el('date').value || todayStr();
+      const prev = prevDateStr(curr);
+      el('prevDateLabel').textContent = prev;
+      const day = db.days[prev];
+
+      const tbody = el('prevTbody');
+      const empty = el('prevEmpty');
+      const kcalCell = el('prevKcalTot');
+      const waterCell = el('prevWaterTot');
+      tbody.innerHTML = '';
+      empty.textContent = '';
+
+      if(!day || (day.entries.length===0 && (day.waterMl||0)===0)){
+        empty.textContent = 'Nessun dato disponibile per il giorno precedente.';
+        kcalCell.textContent = '0';
+        waterCell.textContent = '0 ml';
+        return;
+      }
+
+      let kcalSum = 0;
+      day.entries.forEach(e => {
+        const tr = document.createElement('tr');
+        const kcalTxt = (typeof e.kcal === 'number') ? e.kcal : 'n/d';
+        if(typeof e.kcal === 'number') kcalSum += e.kcal;
+        tr.innerHTML = `<td>${e.meal}</td><td>${e.food}</td><td>${e.qty} ${e.unit}</td><td>${kcalTxt}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      kcalCell.textContent = String(Math.round(kcalSum));
+      waterCell.textContent = `${day.waterMl||0} ml`;
     }
 
     function escapeHtml(s){
@@ -448,7 +555,7 @@
       const day = db.days[d];
       if(!day) return;
       const idx = day.entries.findIndex(e => e.id === id);
-      if(idx>=0){ day.entries.splice(idx,1); store.save(db); renderDay(); }
+      if(idx>=0){ day.entries.splice(idx,1); store.save(db); renderDay(); renderPrevDay(); }
     }
 
     function editEntry(id){
@@ -456,13 +563,11 @@
       const day = db.days[d];
       const item = day?.entries.find(e => e.id===id);
       if(!item) return;
-      // Carica nel form
       el('meal').value = item.meal;
       el('food').value = item.food;
       el('qty').value = item.qty;
       el('unit').value = item.unit;
       el('notes').value = item.notes || '';
-      // Rimuovi l'originale, il salvataggio creerà una nuova voce aggiornata
       delEntry(id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -473,7 +578,6 @@
       return keys.sort()[0];
     }
 
-    // === Esportazione CSV compatibile Excel ===
     function exportCsv(){
       let from = el('exportFrom').value;
       let to = el('exportTo').value;
@@ -503,7 +607,7 @@
       });
 
       const csv = buildCsv(rows, ';');
-      const blob = new Blob(["\uFEFF"+csv], { type: 'text/csv;charset=utf-8;' }); // BOM per Excel
+      const blob = new Blob(["\uFEFF"+csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -516,6 +620,7 @@
 
     // Primo render
     renderDay();
+    renderPrevDay();
 
     // === Nutrizione: lookup kcal da Open Food Facts ===
     async function fetchKcalPer100g(name){
@@ -532,7 +637,7 @@
         let kcal100 = prod.nutriments['energy-kcal_100g'];
         if(typeof kcal100 !== 'number'){
           const kj100 = prod.nutriments['energy_100g'] || prod.nutriments['energy-kj_100g'];
-          if(typeof kj100 === 'number') kcal100 = kj100 * 0.23900573614; // kJ -> kcal
+          if(typeof kj100 === 'number') kcal100 = kj100 * 0.23900573614;
         }
         if(typeof kcal100 === 'number'){
           kcal100 = Number(kcal100.toFixed(1));
@@ -546,18 +651,15 @@
     // === Autotest (debug) ===
     (function runSelfTests(){
       try{
-        // Calcolo kcal
         console.assert(calcKcal(100,150) === 150.0, 'calcKcal 100/150');
         console.assert(calcKcal(42.5,30) === 12.8, 'calcKcal 42.5/30');
         console.assert(calcKcal(0,200) === 0.0, 'calcKcal 0/200');
         console.assert(calcKcal(null,200) === null, 'calcKcal null guard');
 
-        // CSV quoting e newline
         const testCsv = buildCsv([["A;B","C \"quote\"","line\nbreak"]], ';');
         console.assert(testCsv.includes('"A;B"') && testCsv.includes('"C ""quote"""') && testCsv.includes('"line\nbreak"'), 'CSV quoting');
         const lineCount = testCsv.split('\n').length; console.assert(lineCount===2, 'CSV righe attese');
 
-        // Preset: applicazione
         const presetSel = el('presetPortion');
         if(presetSel){
           presetSel.value='{"unit":"fetta","qty":1,"grams":30}';
@@ -565,26 +667,26 @@
           console.assert(el('unit').value==='fetta' && el('qty').value=='1' && el('gramsOverride').value=='30', 'Preset application');
         }
 
-        // Reset acqua (non distruttivo)
         const d = todayStr(); const day0 = ensureDay(d); const prevWater = day0.waterMl; day0.waterMl = 123; store.save(db); resetWater();
         console.assert(ensureDay(d).waterMl===0, 'Reset water');
         ensureDay(d).waterMl = prevWater; store.save(db);
 
-        // escapeHtml
         console.assert(escapeHtml('<>&"') === '&lt;&gt;&amp;&quot;', 'escapeHtml mapping');
 
-        // Inizializzazione form: solo data è valorizzata
-        console.assert(el('meal').value==='' && el('unit').value==='' && el('presetPortion').value==='', 'Campi iniziali vuoti');
+        // Campi iniziali: solo data valorizzata
+        console.assert(el('date').value!=='' && el('qty').value==='' && el('unit').value==='' && el('meal').value==='', 'Campi iniziali coerenti');
 
-        // Badge OK
+        // Prev-day: coerenza formato data
+        const p = prevDateStr('2030-01-01'); console.assert(p==='2029-12-31', 'prevDateStr wrap anno');
+
         const ft = document.querySelector('footer');
         const badge = document.createElement('div');
-        badge.id='selfTest'; badge.className='mt-2 text-xs text-green-600'; badge.textContent = '✓ Autotest: OK';
+        badge.id='selfTest'; badge.className='mt-2 text-xs'; badge.style.color = '#10b981'; badge.textContent = '✓ Autotest: OK';
         ft.appendChild(badge);
       } catch(e){
         const ft = document.querySelector('footer');
         const badge = document.createElement('div');
-        badge.id='selfTest'; badge.className='mt-2 text-xs text-red-600'; badge.textContent = 'Autotest fallito: '+(e?.message||e);
+        badge.id='selfTest'; badge.className='mt-2 text-xs'; badge.style.color = '#ef4444'; badge.textContent = 'Autotest fallito: '+(e?.message||e);
         ft.appendChild(badge);
         console.error('Autotest fallito', e);
       }
