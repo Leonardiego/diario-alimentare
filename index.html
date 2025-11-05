@@ -4,33 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Diario Alimentare</title>
-  <script>
-    // Tailwind via CDN (caricato dopo). Qui posso solo definire config minima se servisse.
-    window.tailwind = window.tailwind || {}; // placeholder
-  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🥗</text></svg>">
   <style>
-    :root {
-      --bg: #0b1220;           /* sfondo scuro bluastro */
-      --text: #e6edf6;         /* testo chiaro */
-      --muted: #93a4bc;        /* testo secondario */
-      --card: #0f172a;         /* pannelli */
-      --border: #1f2a44;       /* bordi */
-      --chip: #111827;         /* chip scuro */
-      --chip-text: #e5e7eb;
-      --primary: #16a34a;      /* verde */
-      --primary-contrast: #07140d;
-      --btn-bg: #111827;
-      --btn-text: #e5e7eb;
-      --btn-border: #26334d;
-      --btn-hover: #0b1324;
-      --danger: #ef4444;
-    }
-    /* Light theme (non predefinita, ma disponibile) */
-    .theme-light {
-      --bg:#f8fafc; --text:#0f172a; --muted:#475569; --card:#ffffff; --border:#e2e8f0; --chip:#0f172a; --chip-text:#ffffff; --primary:#0f172a; --primary-contrast:#ffffff; --btn-bg:#ffffff; --btn-text:#0f172a; --btn-border:#cbd5e1; --btn-hover:#f1f5f9; --danger:#dc2626;
-    }
+    :root { --bg:#0b1220; --text:#e6edf6; --muted:#93a4bc; --card:#0f172a; --border:#1f2a44; --chip:#111827; --chip-text:#e5e7eb; --primary:#16a34a; --primary-contrast:#07140d; --btn-bg:#111827; --btn-text:#e5e7eb; --btn-border:#26334d; --btn-hover:#0b1324; --danger:#ef4444; }
+    .theme-light { --bg:#f8fafc; --text:#0f172a; --muted:#475569; --card:#ffffff; --border:#e2e8f0; --chip:#0f172a; --chip-text:#ffffff; --primary:#0f172a; --primary-contrast:#ffffff; --btn-bg:#ffffff; --btn-text:#0f172a; --btn-border:#cbd5e1; --btn-hover:#f1f5f9; --danger:#dc2626; }
     html, body { height: 100%; }
     body { background: var(--bg); color: var(--text); }
     .input { width: 100%; border-radius: 0.75rem; border: 1px solid var(--border); padding: 0.5rem 0.75rem; background: transparent; color: var(--text); }
@@ -50,7 +28,6 @@
     th, td { padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
     th { text-align: left; font-weight: 600; }
     tfoot td { font-weight: 700; }
-    a.link { color: #60a5fa; }
   </style>
 </head>
 <body>
@@ -59,12 +36,24 @@
       <h1 class="text-xl sm:text-2xl font-semibold">🥗 Diario Alimentare</h1>
       <div class="flex items-center gap-2">
         <button id="themeToggle" class="btn">Tema</button>
+        <button id="resetAllBtn" class="btn btn-danger">Reset totale</button>
         <button id="exportCsvBtn" class="btn btn-primary">Esporta Excel/CSV</button>
       </div>
     </div>
   </header>
 
   <main class="max-w-5xl mx-auto px-4 py-4 sm:py-6">
+    <!-- PROFILO -->
+    <section class="card p-4 mb-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+        <div>
+          <label class="block text-sm mb-1" for="userName">Nome utente</label>
+          <input id="userName" class="input" placeholder="Es. Mario Rossi" autocomplete="off" />
+          <p class="text-xs muted mt-1">Usato nel nome file dell'esportazione e come colonna nel CSV.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- DATA E ACQUA -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div class="card p-4 lg:col-span-2">
@@ -195,8 +184,7 @@
               <th>kcal (stima)</th>
             </tr>
           </thead>
-          <tbody id="prevTbody">
-          </tbody>
+          <tbody id="prevTbody"></tbody>
           <tfoot>
             <tr>
               <td colspan="3">Totale kcal</td>
@@ -239,458 +227,160 @@
   <script>
     // === Tema: dark di default, toggle e persistenza ===
     const THEME_KEY = 'diario_theme';
-    function applyTheme(t){
-      if(t==='light') document.documentElement.classList.add('theme-light');
-      else document.documentElement.classList.remove('theme-light');
-    }
-    const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
-    applyTheme(savedTheme);
+    function applyTheme(t){ if(t==='light') document.documentElement.classList.add('theme-light'); else document.documentElement.classList.remove('theme-light'); }
+    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
 
-    // === Utility di persistenza ===
+    // === Persistence ===
     const KEY = 'diario_alimentare_v1';
-    const defaultData = { days: {}, kcalCache: {} };
-
+    const defaultData = { profile: { name: '' }, days: {}, kcalCache: {} };
     const store = {
-      load() { try { return JSON.parse(localStorage.getItem(KEY)) || structuredClone(defaultData); } catch { return structuredClone(defaultData); } },
-      save(db) { localStorage.setItem(KEY, JSON.stringify(db)); },
+      load(){ try { return JSON.parse(localStorage.getItem(KEY)) || structuredClone(defaultData); } catch { return structuredClone(defaultData);} },
+      save(db){ localStorage.setItem(KEY, JSON.stringify(db)); },
       getKcalCached(name){ const key = name.toLowerCase().trim(); const rec = db.kcalCache?.[key]; if(rec && (Date.now()-rec.timestamp) < 1000*60*60*24*30) return rec.kcalPer100g; return null; },
-      setKcalCached(name, kcal){ const key = name.toLowerCase().trim(); db.kcalCache = db.kcalCache||{}; db.kcalCache[key] = { kcalPer100g: kcal, timestamp: Date.now() }; this.save(db); }
+      setKcalCached(name,kcal){ const key=name.toLowerCase().trim(); db.kcalCache=db.kcalCache||{}; db.kcalCache[key]={kcalPer100g:kcal,timestamp:Date.now()}; this.save(db); }
     };
 
-    // === Inizializzazione ===
+    // === Init ===
     const todayStr = () => new Date().toISOString().slice(0,10);
     const el = id => document.getElementById(id);
     const db = store.load();
 
-    // Toggle tema
     document.getElementById('themeToggle').addEventListener('click', () => {
       const current = localStorage.getItem(THEME_KEY) || 'dark';
       const next = current === 'dark' ? 'light' : 'dark';
-      localStorage.setItem(THEME_KEY, next);
-      applyTheme(next);
+      localStorage.setItem(THEME_KEY, next); applyTheme(next);
     });
 
-    // Precompilazione cibi (in italiano)
-    const FOODS = [
-      'Mela','Banana','Arancia','Pera','Pompelmo','Uva','Fragole','Lamponi','Mirtilli','Ciliegie','Ananas','Kiwi','Pesca','Albicocca','Susina','Melone','Anguria','Fichi','Melagrana','Avocado',
-      'Insalata','Rucola','Spinaci','Cavolo','Cavolfiore','Broccoli','Zucchine','Melanzane','Peperoni','Pomodori','Carote','Sedano','Finocchi','Cetrioli','Patate','Patate dolci','Cipolla','Aglio','Funghi','Asparagi','Carciofi','Bietole','Radicchio','Zucca',
-      'Pane bianco','Pane integrale','Pane ai cereali','Pane di segale','Piadina','Crackers','Grissini','Fette biscottate','Pasta','Pasta integrale','Riso','Riso integrale','Farro','Orzo','Cous cous','Quinoa','Avena fiocchi','Gnocchi','Polenta',
-      'Latte vaccino','Latte senza lattosio','Yogurt bianco','Yogurt greco','Kefir','Ricotta','Mozzarella','Scamorza','Crescenza','Parmigiano Reggiano','Grana Padano','Pecorino','Fiocchi di latte',
-      'Uova','Prosciutto cotto','Prosciutto crudo','Bresaola','Tacchino affettato','Pollo petto','Tacchino petto','Manzo','Carne macinata','Vitello','Maiale','Salmone','Tonno','Merluzzo','Orata','Branzino','Sgombro','Uova sode',
-      'Lenticchie','Ceci','Fagioli borlotti','Fagioli cannellini','Piselli','Soia edamame','Tofu','Tempeh','Seitan',
-      'Mandorle','Nocciole','Noci','Pistacchi','Arachidi','Anacardi','Semi di zucca','Semi di girasole','Semi di lino','Burro di arachidi','Tahina',
-      'Olio extravergine di oliva','Olio di semi','Aceto balsamico','Aceto di mele','Succo di limone','Maionese','Ketchup','Senape','Salsa di soia','Pesto','Passata di pomodoro','Sughetto di pomodoro','Burro','Margarina',
-      'Cioccolato fondente','Cioccolato al latte','Biscotti','Cornetti','Miele','Marmellata','Gelato','Torta','Croissant integrale','Barretta ai cereali','Popcorn','Patatine','Crêpe',
-      'Caffè espresso','Caffè americano','Cappuccino','Tè verde','Tè nero','Caffè orzo','Latte di soia','Latte di mandorla','Latte di avena','Yogurt alla frutta','Muesli','Cereali integrali',
-      'Acqua naturale','Acqua frizzante','Succo di frutta','Bevanda isotonica','Spremuta'
+    // Precompila datalist cibi
+    const FOODS = ['Mela','Banana','Arancia','Pera','Pompelmo','Uva','Fragole','Lamponi','Mirtilli','Ciliegie','Ananas','Kiwi','Pesca','Albicocca','Susina','Melone','Anguria','Fichi','Melagrana','Avocado','Insalata','Rucola','Spinaci','Cavolo','Cavolfiore','Broccoli','Zucchine','Melanzane','Peperoni','Pomodori','Carote','Sedano','Finocchi','Cetrioli','Patate','Patate dolci','Cipolla','Aglio','Funghi','Asparagi','Carciofi','Bietole','Radicchio','Zucca','Pane bianco','Pane integrale','Pane ai cereali','Pane di segale','Piadina','Crackers','Grissini','Fette biscottate','Pasta','Pasta integrale','Riso','Riso integrale','Farro','Orzo','Cous cous','Quinoa','Avena fiocchi','Gnocchi','Polenta','Latte vaccino','Latte senza lattosio','Yogurt bianco','Yogurt greco','Kefir','Ricotta','Mozzarella','Scamorza','Crescenza','Parmigiano Reggiano','Grana Padano','Pecorino','Fiocchi di latte','Uova','Prosciutto cotto','Prosciutto crudo','Bresaola','Tacchino affettato','Pollo petto','Tacchino petto','Manzo','Carne macinata','Vitello','Maiale','Salmone','Tonno','Merluzzo','Orata','Branzino','Sgombro','Uova sode','Lenticchie','Ceci','Fagioli borlotti','Fagioli cannellini','Piselli','Soia edamame','Tofu','Tempeh','Seitan','Mandorle','Nocciole','Noci','Pistacchi','Arachidi','Anacardi','Semi di zucca','Semi di girasole','Semi di lino','Burro di arachidi','Tahina','Olio extravergine di oliva','Olio di semi','Aceto balsamico','Aceto di mele','Succo di limone','Maionese','Ketchup','Senape','Salsa di soia','Pesto','Passata di pomodoro','Sughetto di pomodoro','Burro','Margarina','Cioccolato fondente','Cioccolato al latte','Biscotti','Cornetti','Miele','Marmellata','Gelato','Torta','Croissant integrale','Barretta ai cereali','Popcorn','Patatine','Crêpe','Caffè espresso','Caffè americano','Cappuccino','Tè verde','Tè nero','Caffè orzo','Latte di soia','Latte di mandorla','Latte di avena','Yogurt alla frutta','Muesli','Cereali integrali','Acqua naturale','Acqua frizzante','Succo di frutta','Bevanda isotonica','Spremuta'];
+    const foodList = document.getElementById('foodList'); FOODS.forEach(f=>{ const o=document.createElement('option'); o.value=f; foodList.appendChild(o); });
+
+    // Preset porzione (per kcal)
+    const PRESETS=[
+      {label:'1 fetta pane ≈ 30 g',unit:'fetta',qty:1,grams:30},
+      {label:'1 tazza latte ≈ 250 ml',unit:'tazza',qty:1,grams:250},
+      {label:'1 cucchiaio olio ≈ 10 ml',unit:'cucchiaio',qty:1,grams:10},
+      {label:'1 cucchiaio riso crudo ≈ 15 g',unit:'cucchiaio',qty:1,grams:15},
+      {label:'1 mela media ≈ 150 g',unit:'unità',qty:1,grams:150},
+      {label:'1 vasetto yogurt ≈ 125 g',unit:'vasetto',qty:1,grams:125}
     ];
 
-    const PRESETS = [
-      { label: '1 fetta pane ≈ 30 g', unit: 'fetta', qty: 1, grams: 30 },
-      { label: '1 tazza latte ≈ 250 ml', unit: 'tazza', qty: 1, grams: 250 },
-      { label: '1 cucchiaio olio ≈ 10 ml', unit: 'cucchiaio', qty: 1, grams: 10 },
-      { label: '1 cucchiaio riso crudo ≈ 15 g', unit: 'cucchiaio', qty: 1, grams: 15 },
-      { label: '1 mela media ≈ 150 g', unit: 'unità', qty: 1, grams: 150 },
-      { label: '1 vasetto yogurt ≈ 125 g', unit: 'vasetto', qty: 1, grams: 125 }
-    ];
-
-    // Popola datalist
-    const foodList = document.getElementById('foodList');
-    FOODS.forEach(f => { const o = document.createElement('option'); o.value = f; foodList.appendChild(o); });
-
-    // Set default date e reset campi
+    // Set default date & reset campi
     el('date').value = todayStr();
-    ['meal','unit','presetPortion','food','qty','notes','gramsOverride'].forEach(id => { const n=el(id); if(n) n.value=''; });
+    ;['meal','unit','presetPortion','food','qty','notes','gramsOverride'].forEach(id=>{ const n=el(id); if(n) n.value=''; });
+    if(el('userName')){ el('userName').value = (db.profile?.name)||''; el('userName').addEventListener('input', saveName); }
 
     // === Eventi UI ===
-    document.querySelectorAll('[data-water]').forEach(btn => btn.addEventListener('click', () => addWater(parseInt(btn.dataset.water,10))));
-    el('addWaterBtn').addEventListener('click', () => {
-      const v = parseInt(el('waterCustom').value, 10); if (!isNaN(v) && v > 0) addWater(v);
-      el('waterCustom').value='';
-    });
-
-    el('addEntryBtn').addEventListener('click', () => addEntry());
+    document.querySelectorAll('[data-water]').forEach(btn=>btn.addEventListener('click',()=>addWater(parseInt(btn.dataset.water,10))));
+    el('addWaterBtn').addEventListener('click',()=>{ const v=parseInt(el('waterCustom').value,10); if(!isNaN(v)&&v>0) addWater(v); el('waterCustom').value=''; });
+    el('addEntryBtn').addEventListener('click',()=>addEntry());
     el('presetPortion').addEventListener('change', onPresetChange);
     el('resetWaterBtn').addEventListener('click', resetWater);
     el('clearFormBtn').addEventListener('click', clearForm);
     el('deleteDayBtn').addEventListener('click', deleteDay);
     el('copyDayBtn').addEventListener('click', copyDayTo);
+    el('resetAllBtn').addEventListener('click', resetAll);
 
-    el('exportCsvBtn').addEventListener('click', () => {
-      el('exportFrom').value = el('exportFrom').value || earliestDate() || todayStr();
-      el('exportTo').value = el('exportTo').value || todayStr();
-      document.querySelector('section:nth-of-type(4)').scrollIntoView({behavior:'smooth'});
-    });
-
+    el('exportCsvBtn').addEventListener('click',()=>{ el('exportFrom').value = el('exportFrom').value || earliestDate() || todayStr(); el('exportTo').value = el('exportTo').value || todayStr(); document.querySelector('section:nth-of-type(4)').scrollIntoView({behavior:'smooth'}); });
     el('doExportCsv').addEventListener('click', exportCsv);
-    el('date').addEventListener('change', () => { renderDay(); renderPrevDay(); });
+    el('date').addEventListener('change', ()=>{ renderDay(); renderPrevDay(); });
 
     // === Helpers ===
-    function calcKcal(kcalPer100, grams){
-      if(typeof kcalPer100 !== 'number' || typeof grams !== 'number') return null;
-      return Number(((grams/100) * kcalPer100).toFixed(1));
-    }
+    function saveName(){ db.profile=db.profile||{}; db.profile.name=(el('userName').value||'').trim(); store.save(db); }
+    function calcKcal(kcalPer100, grams){ if(typeof kcalPer100!=='number'||typeof grams!=='number') return null; return Number(((grams/100)*kcalPer100).toFixed(1)); }
+    function csvQuote(field){ const s=String(field??''); return /[",\n;]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
+    function buildCsv(rows, sep=';'){ return rows.map(r=>r.map(csvQuote).join(sep)).join('\n'); }
+    function onPresetChange(){ const sel=el('presetPortion'); const v=sel.value; if(!v) return; try{ const obj=JSON.parse(v); if(obj.qty) el('qty').value=obj.qty; if(obj.unit) el('unit').value=obj.unit; if(obj.grams) el('gramsOverride').value=obj.grams; }catch(e){ console.warn('Preset non valido',e);} }
 
-    function csvQuote(field){
-      const s = String(field ?? '');
-      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
-    }
-
-    function buildCsv(rows, sep=';'){
-      return rows.map(r => r.map(csvQuote).join(sep)).join('\n');
-    }
-
-    function onPresetChange(){
-      const sel = el('presetPortion');
-      const v = sel.value;
-      if(!v){ return; }
-      try {
-        const obj = JSON.parse(v);
-        if(obj.qty) el('qty').value = obj.qty;
-        if(obj.unit) el('unit').value = obj.unit;
-        if(obj.grams) el('gramsOverride').value = obj.grams;
-      } catch(e){ console.warn('Preset non valido', e); }
-    }
-
-    function ensureDay(d){
-      db.days[d] = db.days[d] || { entries: [], waterMl: 0 };
-      return db.days[d];
-    }
-
-    function addWater(ml){
-      const d = el('date').value;
-      const day = ensureDay(d);
-      day.waterMl += ml;
-      store.save(db);
-      renderDay();
-      renderPrevDay();
-    }
-
-    function resetWater(){
-      const d = el('date').value;
-      const day = ensureDay(d);
-      if(!day) return;
-      if(confirm('Azzero l\'idratazione del giorno corrente?')){
-        day.waterMl = 0;
-        store.save(db);
-        renderDay();
-        renderPrevDay();
-      }
-    }
+    function ensureDay(d){ db.days[d]=db.days[d]||{entries:[], waterMl:0}; return db.days[d]; }
+    function addWater(ml){ const d=el('date').value; const day=ensureDay(d); day.waterMl+=ml; store.save(db); renderDay(); renderPrevDay(); }
+    function resetWater(){ const d=el('date').value; const day=ensureDay(d); if(!day) return; if(confirm('Azzero l\'idratazione del giorno corrente?')){ day.waterMl=0; store.save(db); renderDay(); renderPrevDay(); } }
 
     async function addEntry(){
-      const d = el('date').value;
-      const day = ensureDay(d);
-      const meal = el('meal').value.trim();
-      const food = el('food').value.trim();
-      const qty = parseFloat(el('qty').value);
-      const unit = el('unit').value;
-      const notes = el('notes').value.trim();
-
+      const d=el('date').value; const day=ensureDay(d); const meal=el('meal').value.trim(); const food=el('food').value.trim(); const qty=parseFloat(el('qty').value); const unit=el('unit').value; const notes=el('notes').value.trim();
       if(!meal){ alert('Seleziona il pasto.'); return; }
       if(!food){ alert('Inserisci un alimento.'); return; }
-      if(isNaN(qty) || qty <= 0){ alert('Inserisci una quantità valida.'); return; }
+      if(isNaN(qty)||qty<=0){ alert('Inserisci una quantità valida.'); return; }
       if(!unit){ alert('Seleziona l\'unità di misura.'); return; }
-
-      let gramsEq = null;
-      if(unit === 'g' || unit === 'ml'){
-        gramsEq = qty;
-      } else {
-        const override = parseFloat(el('gramsOverride').value);
-        if(!isNaN(override) && override > 0){
-          gramsEq = override;
-        } else {
-          const promptText = `Per il calcolo delle kcal, quanti grammi/ml rappresenta ${qty} ${unit}? (es. 1 fetta pane ≈ 30g)`;
-          const val = prompt(promptText, '');
-          if(val===null) return;
-          const n = parseFloat(val.replace(',', '.'));
-          if(isNaN(n) || n<=0){ alert('Valore non valido. Riprova.'); return; }
-          gramsEq = n;
-        }
-      }
-
-      const kcalPer100 = await fetchKcalPer100g(food);
-      const kcal = kcalPer100 ? calcKcal(kcalPer100, gramsEq) : null;
-
-      day.entries.push({ id: crypto.randomUUID(), meal, food, qty, unit, notes, kcal: (kcal ?? null), kcalPer100: (kcalPer100 ?? null), gramsEq });
-      store.save(db);
-      clearForm();
-      renderDay();
-      renderPrevDay();
+      let gramsEq=null; if(unit==='g'||unit==='ml'){ gramsEq=qty; } else { const override=parseFloat(el('gramsOverride').value); if(!isNaN(override)&&override>0){ gramsEq=override; } else { const val=prompt(`Per il calcolo delle kcal, quanti grammi/ml rappresenta ${qty} ${unit}? (es. 1 fetta pane ≈ 30g)`,''); if(val===null) return; const n=parseFloat(val.replace(',','.')); if(isNaN(n)||n<=0){ alert('Valore non valido. Riprova.'); return; } gramsEq=n; } }
+      const kcalPer100=await fetchKcalPer100g(food); const kcal=kcalPer100?calcKcal(kcalPer100, gramsEq):null;
+      day.entries.push({ id: crypto.randomUUID(), meal, food, qty, unit, notes, kcal:(kcal??null), kcalPer100:(kcalPer100??null), gramsEq });
+      store.save(db); clearForm(); renderDay(); renderPrevDay();
     }
 
-    function clearForm(){
-      ['food','qty','notes','gramsOverride','presetPortion'].forEach(id => { const n=el(id); if(n) n.value=''; });
-      // NON tocchiamo data/meal/unit - lasciamo le selezioni all'utente
-      el('food').focus();
-    }
+    function clearForm(){ ['food','qty','notes','gramsOverride','presetPortion'].forEach(id=>{ const n=el(id); if(n) n.value=''; }); el('food').focus(); }
+    function deleteDay(){ const d=el('date').value; if(confirm('Sicuro di voler svuotare tutte le voci del giorno?')){ delete db.days[d]; store.save(db); renderDay(); renderPrevDay(); } }
+    function copyDayTo(){ const d=el('date').value; if(!db.days[d]){ alert('Nessun dato da copiare per questa data.'); return; } const target=prompt('Duplica su quale data? (formato YYYY-MM-DD)'); if(!target) return; if(!/^\d{4}-\d{2}-\d{2}$/.test(target)){ alert('Formato data non valido.'); return; } db.days[target]=JSON.parse(JSON.stringify(db.days[d])); store.save(db); alert('Copiato!'); }
 
-    function deleteDay(){
-      const d = el('date').value;
-      if(confirm('Sicuro di voler svuotare tutte le voci del giorno?')){
-        delete db.days[d];
-        store.save(db);
-        renderDay();
-        renderPrevDay();
-      }
-    }
+    function renderDay(){ const d=el('date').value; const day=db.days[d]; el('waterTotal').textContent=`${day?.waterMl||0} ml`; const wrap=el('daySummary'); wrap.innerHTML=''; if(!day||(day.entries.length===0&&(day.waterMl||0)===0)){ wrap.innerHTML='<div class="muted">Niente ancora oggi. Aggiungi un alimento o l\'acqua bevuta. 😊</div>'; el('kcalDay').textContent='0 kcal'; return; } const byMeal={}; day.entries.forEach(e=>{ (byMeal[e.meal] ||= []).push(e); }); let dayKcal=0; Object.keys(byMeal).forEach(meal=>{ const list=byMeal[meal]; const section=document.createElement('div'); section.innerHTML=`<div class="flex items-center justify-between"><div class="font-semibold">${meal}</div><div class="pill">${list.length} elemento/i</div></div><ul class="mt-2 divide-y" style="border-color: var(--border)" id="list-${meal}"></ul>`; wrap.appendChild(section); const ul=section.querySelector('ul'); list.forEach(item=>{ const li=document.createElement('li'); li.className='py-2 flex items-start justify-between gap-3'; const kcalTxt=(typeof item.kcal==='number')?`${item.kcal} kcal`:'<span class="muted">kcal n/d</span>'; if(typeof item.kcal==='number') dayKcal+=item.kcal; li.innerHTML=`<div><div class="font-medium">${item.food}</div><div class="text-sm muted" style="color: var(--muted)">${item.qty} ${item.unit}${item.notes? ' · '+escapeHtml(item.notes): ''} · ${kcalTxt}</div>${item.kcalPer100? `<div class="text-xs muted">Fonte: Open Food Facts · ${item.kcalPer100} kcal/100g</div>`:''}</div><div class="flex gap-2"><button class="btn" data-edit="${item.id}">Modifica</button><button class="btn btn-danger" data-del="${item.id}">Elimina</button></div>`; ul.appendChild(li); }); }); const water=document.createElement('div'); water.className='mt-2 text-sm'; water.innerHTML=`💧 Acqua totale: <span class="font-medium">${day.waterMl} ml</span>`; wrap.appendChild(water); el('kcalDay').textContent=`${Math.round(dayKcal)} kcal`; wrap.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',()=>delEntry(btn.dataset.del))); wrap.querySelectorAll('[data-edit]').forEach(btn=>btn.addEventListener('click',()=>editEntry(btn.dataset.edit))); }
 
-    function copyDayTo(){
-      const d = el('date').value;
-      if(!db.days[d]){ alert('Nessun dato da copiare per questa data.'); return; }
-      const target = prompt('Duplica su quale data? (formato YYYY-MM-DD)');
-      if(!target) return;
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(target)){ alert('Formato data non valido.'); return; }
-      db.days[target] = JSON.parse(JSON.stringify(db.days[d]));
-      store.save(db);
-      alert('Copiato!');
-    }
+    function prevDateStr(dStr){ const d=new Date(dStr+'T00:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+    function renderPrevDay(){ const curr=el('date').value||todayStr(); const prev=prevDateStr(curr); el('prevDateLabel').textContent=prev; const day=db.days[prev]; const tbody=el('prevTbody'); const empty=el('prevEmpty'); const kcalCell=el('prevKcalTot'); const waterCell=el('prevWaterTot'); tbody.innerHTML=''; empty.textContent=''; if(!day||(day.entries.length===0&&(day.waterMl||0)===0)){ empty.textContent='Nessun dato disponibile per il giorno precedente.'; kcalCell.textContent='0'; waterCell.textContent='0 ml'; return; } let kcalSum=0; day.entries.forEach(e=>{ const tr=document.createElement('tr'); const kcalTxt=(typeof e.kcal==='number')?e.kcal:'n/d'; if(typeof e.kcal==='number') kcalSum+=e.kcal; tr.innerHTML=`<td>${e.meal}</td><td>${e.food}</td><td>${e.qty} ${e.unit}</td><td>${kcalTxt}</td>`; tbody.appendChild(tr); }); kcalCell.textContent=String(Math.round(kcalSum)); waterCell.textContent=`${day.waterMl||0} ml`; }
 
-    function renderDay(){
-      const d = el('date').value;
-      const day = db.days[d];
-      el('waterTotal').textContent = `${day?.waterMl||0} ml`;
+    function escapeHtml(s){ return s.replace(/[&<>\"]+/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function delEntry(id){ const d=el('date').value; const day=db.days[d]; if(!day) return; const idx=day.entries.findIndex(e=>e.id===id); if(idx>=0){ day.entries.splice(idx,1); store.save(db); renderDay(); renderPrevDay(); } }
+    function editEntry(id){ const d=el('date').value; const day=db.days[d]; const item=day?.entries.find(e=>e.id===id); if(!item) return; el('meal').value=item.meal; el('food').value=item.food; el('qty').value=item.qty; el('unit').value=item.unit; el('notes').value=item.notes||''; delEntry(id); window.scrollTo({top:0, behavior:'smooth'}); }
+    function earliestDate(){ const keys=Object.keys(db.days); if(keys.length===0) return null; return keys.sort()[0]; }
 
-      const wrap = document.getElementById('daySummary');
-      wrap.innerHTML = '';
-      if(!day || (day.entries.length===0 && (day.waterMl||0)===0)){
-        wrap.innerHTML = '<div class="muted">Niente ancora oggi. Aggiungi un alimento o l\'acqua bevuta. 😊</div>';
-        el('kcalDay').textContent = '0 kcal';
-        return;
-      }
-
-      const byMeal = {};
-      day.entries.forEach(e => { (byMeal[e.meal] ||= []).push(e); });
-
-      let dayKcal = 0;
-      Object.keys(byMeal).forEach(meal => {
-        const list = byMeal[meal];
-        const section = document.createElement('div');
-        section.innerHTML = `
-          <div class="flex items-center justify-between">
-            <div class="font-semibold">${meal}</div>
-            <div class="pill">${list.length} elemento/i</div>
-          </div>
-          <ul class="mt-2 divide-y" style="border-color: var(--border)" id="list-${meal}"></ul>
-        `;
-        wrap.appendChild(section);
-
-        const ul = section.querySelector('ul');
-        list.forEach(item => {
-          const li = document.createElement('li');
-          li.className = 'py-2 flex items-start justify-between gap-3';
-          const kcalTxt = (typeof item.kcal === 'number') ? `${item.kcal} kcal` : '<span class="muted">kcal n/d</span>';
-          if(typeof item.kcal === 'number') dayKcal += item.kcal;
-          li.innerHTML = `
-            <div>
-              <div class="font-medium">${item.food}</div>
-              <div class="text-sm muted" style="color: var(--muted)">${item.qty} ${item.unit}${item.notes? ' · '+escapeHtml(item.notes): ''} · ${kcalTxt}</div>
-              ${item.kcalPer100? `<div class="text-xs muted">Fonte: Open Food Facts · ${item.kcalPer100} kcal/100g</div>`:''}
-            </div>
-            <div class="flex gap-2">
-              <button class="btn" data-edit="${item.id}">Modifica</button>
-              <button class="btn btn-danger" data-del="${item.id}">Elimina</button>
-            </div>
-          `;
-          ul.appendChild(li);
-        });
-      });
-
-      const water = document.createElement('div');
-      water.className = 'mt-2 text-sm';
-      water.innerHTML = `💧 Acqua totale: <span class="font-medium">${day.waterMl} ml</span>`;
-      wrap.appendChild(water);
-
-      el('kcalDay').textContent = `${Math.round(dayKcal)} kcal`;
-
-      wrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => delEntry(btn.dataset.del)));
-      wrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => editEntry(btn.dataset.edit)));
-    }
-
-    function prevDateStr(dStr){
-      const d = new Date(dStr + 'T00:00:00');
-      d.setDate(d.getDate()-1);
-      return d.toISOString().slice(0,10);
-    }
-
-    function renderPrevDay(){
-      const curr = el('date').value || todayStr();
-      const prev = prevDateStr(curr);
-      el('prevDateLabel').textContent = prev;
-      const day = db.days[prev];
-
-      const tbody = el('prevTbody');
-      const empty = el('prevEmpty');
-      const kcalCell = el('prevKcalTot');
-      const waterCell = el('prevWaterTot');
-      tbody.innerHTML = '';
-      empty.textContent = '';
-
-      if(!day || (day.entries.length===0 && (day.waterMl||0)===0)){
-        empty.textContent = 'Nessun dato disponibile per il giorno precedente.';
-        kcalCell.textContent = '0';
-        waterCell.textContent = '0 ml';
-        return;
-      }
-
-      let kcalSum = 0;
-      day.entries.forEach(e => {
-        const tr = document.createElement('tr');
-        const kcalTxt = (typeof e.kcal === 'number') ? e.kcal : 'n/d';
-        if(typeof e.kcal === 'number') kcalSum += e.kcal;
-        tr.innerHTML = `<td>${e.meal}</td><td>${e.food}</td><td>${e.qty} ${e.unit}</td><td>${kcalTxt}</td>`;
-        tbody.appendChild(tr);
-      });
-
-      kcalCell.textContent = String(Math.round(kcalSum));
-      waterCell.textContent = `${day.waterMl||0} ml`;
-    }
-
-    function escapeHtml(s){
-      return s.replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-    }
-
-    function delEntry(id){
-      const d = el('date').value;
-      const day = db.days[d];
-      if(!day) return;
-      const idx = day.entries.findIndex(e => e.id === id);
-      if(idx>=0){ day.entries.splice(idx,1); store.save(db); renderDay(); renderPrevDay(); }
-    }
-
-    function editEntry(id){
-      const d = el('date').value;
-      const day = db.days[d];
-      const item = day?.entries.find(e => e.id===id);
-      if(!item) return;
-      el('meal').value = item.meal;
-      el('food').value = item.food;
-      el('qty').value = item.qty;
-      el('unit').value = item.unit;
-      el('notes').value = item.notes || '';
-      delEntry(id);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function earliestDate(){
-      const keys = Object.keys(db.days);
-      if(keys.length===0) return null;
-      return keys.sort()[0];
-    }
-
+    // === Export CSV con colonna Utente ===
     function exportCsv(){
-      let from = el('exportFrom').value;
-      let to = el('exportTo').value;
-      if(!from || !to){ alert('Seleziona un intervallo di date.'); return; }
-      if(from > to){ [from,to] = [to,from]; }
+      let from=el('exportFrom').value; let to=el('exportTo').value;
+      if(!from||!to){ alert('Seleziona un intervallo di date.'); return; }
+      if(from>to){ [from,to]=[to,from]; }
+      const userName = (db.profile?.name||'').trim() || 'Utente';
 
-      const rows = [[
-        'Data','Pasto','Alimento','Quantità','Unità','Note','Acqua totale del giorno (ml)',
-        'kcal voce','kcal/100g (fonte OFF)','g/ml usati per kcal'
-      ]];
-
-      const dates = Object.keys(db.days).filter(d => d>=from && d<=to).sort();
+      const rows=[[ 'Utente','Data','Pasto','Alimento','Quantità','Unità','Note','Acqua totale del giorno (ml)','kcal voce','kcal/100g (fonte OFF)','g/ml usati per kcal' ]];
+      const dates=Object.keys(db.days).filter(d=>d>=from&&d<=to).sort();
       if(dates.length===0){ alert('Nessun dato nell\'intervallo selezionato.'); return; }
 
-      dates.forEach(d => {
-        const day = db.days[d];
+      dates.forEach(d=>{
+        const day=db.days[d];
         if(day.entries.length===0){
-          rows.push([d,'-','-','-','-','-',(day.waterMl||0),'','','']);
+          rows.push([userName,d,'-','-','-','-','-',(day.waterMl||0),'','','']);
         } else {
-          day.entries.forEach((e, i) => {
-            rows.push([
-              d, e.meal, e.food, e.qty, e.unit, e.notes||'', i===0? (day.waterMl||0) : '',
-              (e.kcal ?? ''), (e.kcalPer100 ?? ''), (e.gramsEq ?? '')
-            ]);
+          day.entries.forEach((e,i)=>{
+            rows.push([userName,d, e.meal, e.food, e.qty, e.unit, e.notes||'', i===0?(day.waterMl||0):'', (e.kcal??''), (e.kcalPer100??''), (e.gramsEq??'') ]);
           });
         }
       });
 
-      const csv = buildCsv(rows, ';');
-      const blob = new Blob(["\uFEFF"+csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `diario_alimentare_${from}_to_${to}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const csv=buildCsv(rows,';');
+      const blob=new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8;'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url;
+      const nameSlug=(db.profile?.name||'utente').toLowerCase().replace(/[^a-z0-9]+/gi,'_').replace(/^_+|_+$/g,'')||'utente';
+      a.download=`diario_${nameSlug}_${from}_to_${to}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     }
 
     // Primo render
-    renderDay();
-    renderPrevDay();
+    renderDay(); renderPrevDay();
 
-    // === Nutrizione: lookup kcal da Open Food Facts ===
-    async function fetchKcalPer100g(name){
-      const cached = store.getKcalCached(name);
-      if(typeof cached === 'number') return cached;
-      try{
-        const q = encodeURIComponent(name);
-        const url = `https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&json=1&page_size=1&fields=product_name,nutriments,serving_size&search_terms=${q}`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        if(!res.ok) throw new Error('HTTP '+res.status);
-        const data = await res.json();
-        const prod = data.products?.[0];
-        if(!prod || !prod.nutriments){ store.setKcalCached(name, null); return null; }
-        let kcal100 = prod.nutriments['energy-kcal_100g'];
-        if(typeof kcal100 !== 'number'){
-          const kj100 = prod.nutriments['energy_100g'] || prod.nutriments['energy-kj_100g'];
-          if(typeof kj100 === 'number') kcal100 = kj100 * 0.23900573614;
-        }
-        if(typeof kcal100 === 'number'){
-          kcal100 = Number(kcal100.toFixed(1));
-          store.setKcalCached(name, kcal100);
-          return kcal100;
-        }
-        store.setKcalCached(name, null); return null;
-      } catch(e){ console.warn('OFF error', e); return null; }
-    }
+    // === Open Food Facts kcal ===
+    async function fetchKcalPer100g(name){ const cached=store.getKcalCached(name); if(typeof cached==='number') return cached; try{ const q=encodeURIComponent(name); const url=`https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&json=1&page_size=1&fields=product_name,nutriments,serving_size&search_terms=${q}`; const res=await fetch(url,{headers:{'Accept':'application/json'}}); if(!res.ok) throw new Error('HTTP '+res.status); const data=await res.json(); const prod=data.products?.[0]; if(!prod||!prod.nutriments){ store.setKcalCached(name,null); return null; } let kcal100=prod.nutriments['energy-kcal_100g']; if(typeof kcal100!=='number'){ const kj100=prod.nutriments['energy_100g']||prod.nutriments['energy-kj_100g']; if(typeof kj100==='number') kcal100=kj100*0.23900573614; } if(typeof kcal100==='number'){ kcal100=Number(kcal100.toFixed(1)); store.setKcalCached(name,kcal100); return kcal100; } store.setKcalCached(name,null); return null; }catch(e){ console.warn('OFF error',e); return null; } }
 
-    // === Autotest (debug) ===
+    // === Autotest (no prompt al refresh) ===
     (function runSelfTests(){
       try{
-        console.assert(calcKcal(100,150) === 150.0, 'calcKcal 100/150');
-        console.assert(calcKcal(42.5,30) === 12.8, 'calcKcal 42.5/30');
-        console.assert(calcKcal(0,200) === 0.0, 'calcKcal 0/200');
-        console.assert(calcKcal(null,200) === null, 'calcKcal null guard');
-
-        const testCsv = buildCsv([["A;B","C \"quote\"","line\nbreak"]], ';');
-        console.assert(testCsv.includes('"A;B"') && testCsv.includes('"C ""quote"""') && testCsv.includes('"line\nbreak"'), 'CSV quoting');
-        const lineCount = testCsv.split('\n').length; console.assert(lineCount===2, 'CSV righe attese');
-
-        const presetSel = el('presetPortion');
-        if(presetSel){
-          presetSel.value='{"unit":"fetta","qty":1,"grams":30}';
-          onPresetChange();
-          console.assert(el('unit').value==='fetta' && el('qty').value=='1' && el('gramsOverride').value=='30', 'Preset application');
-        }
-
-        const d = todayStr(); const day0 = ensureDay(d); const prevWater = day0.waterMl; day0.waterMl = 123; store.save(db); resetWater();
-        console.assert(ensureDay(d).waterMl===0, 'Reset water');
-        ensureDay(d).waterMl = prevWater; store.save(db);
-
-        console.assert(escapeHtml('<>&"') === '&lt;&gt;&amp;&quot;', 'escapeHtml mapping');
-
-        // Campi iniziali: solo data valorizzata
-        console.assert(el('date').value!=='' && el('qty').value==='' && el('unit').value==='' && el('meal').value==='', 'Campi iniziali coerenti');
-
-        // Prev-day: coerenza formato data
-        const p = prevDateStr('2030-01-01'); console.assert(p==='2029-12-31', 'prevDateStr wrap anno');
-
-        const ft = document.querySelector('footer');
-        const badge = document.createElement('div');
-        badge.id='selfTest'; badge.className='mt-2 text-xs'; badge.style.color = '#10b981'; badge.textContent = '✓ Autotest: OK';
-        ft.appendChild(badge);
-      } catch(e){
-        const ft = document.querySelector('footer');
-        const badge = document.createElement('div');
-        badge.id='selfTest'; badge.className='mt-2 text-xs'; badge.style.color = '#ef4444'; badge.textContent = 'Autotest fallito: '+(e?.message||e);
-        ft.appendChild(badge);
-        console.error('Autotest fallito', e);
-      }
+        console.assert(calcKcal(100,150)===150.0,'calcKcal 100/150');
+        console.assert(calcKcal(42.5,30)===12.8,'calcKcal 42.5/30');
+        console.assert(calcKcal(0,200)===0.0,'calcKcal 0/200');
+        console.assert(calcKcal(null,200)===null,'calcKcal null guard');
+        const testCsv=buildCsv([["A;B","C \"quote\"","line\nbreak"]],';');
+        console.assert(testCsv.includes('"A;B"')&&testCsv.includes('"C ""quote"""')&&testCsv.includes('"line\nbreak"'),'CSV quoting');
+        const lineCount=testCsv.split('\n').length; console.assert(lineCount===2,'CSV righe attese');
+        const presetSel=el('presetPortion'); if(presetSel){ presetSel.value='{"unit":"fetta","qty":1,"grams":30}'; onPresetChange(); console.assert(el('unit').value==='fetta'&&el('qty').value=='1'&&el('gramsOverride').value=='30','Preset application'); }
+        const d=todayStr(); const day0=ensureDay(d); const prevWater=day0.waterMl; day0.waterMl=123; store.save(db); const __c=window.confirm; window.confirm=()=>true; resetWater(); window.confirm=__c; console.assert(ensureDay(d).waterMl===0,'Reset water'); ensureDay(d).waterMl=prevWater; store.save(db);
+        console.assert(escapeHtml('<>&"')==='&lt;&gt;&amp;&quot;','escapeHtml mapping');
+        console.assert(el('date').value!==''&&el('qty').value===''&&el('unit').value===''&&el('meal').value==='','Campi iniziali coerenti');
+        const p=prevDateStr('2030-01-01'); console.assert(p==='2029-12-31','prevDateStr wrap anno');
+        // Nuovo: header CSV contiene "Utente"
+        const hdr=buildCsv([["Utente","Data"]]); console.assert(hdr.startsWith('Utente;Data'),'CSV header Utente presente');
+        const ft=document.querySelector('footer'); const badge=document.createElement('div'); badge.id='selfTest'; badge.className='mt-2 text-xs'; badge.style.color='#10b981'; badge.textContent='✓ Autotest: OK'; ft.appendChild(badge);
+      }catch(e){ const ft=document.querySelector('footer'); const badge=document.createElement('div'); badge.id='selfTest'; badge.className='mt-2 text-xs'; badge.style.color='#ef4444'; badge.textContent='Autotest fallito: '+(e?.message||e); ft.appendChild(badge); console.error('Autotest fallito',e); }
     })();
+
+    function resetAll(){ const msg1='Questa azione cancellerà TUTTI i dati del diario (voci, acqua, cache kcal, nome). Procedere?'; const msg2='Conferma definitiva: i dati andranno persi in modo permanente.'; if(confirm(msg1)&&confirm(msg2)){ localStorage.removeItem(KEY); location.reload(); } }
   </script>
 </body>
 </html>
