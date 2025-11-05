@@ -7,14 +7,14 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🥗</text></svg>">
   <style>
-    /* Nota: con CDN Tailwind, le utility funzionano via classi; le classi custom qui sotto sono CSS semplice (no @apply). */
+    /* Nota: con CDN Tailwind le utility sono via classi; qui sotto classi semplici CSS. */
     .input { width: 100%; border-radius: 0.75rem; border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; }
     .btn { border-radius: 0.75rem; padding: 0.5rem 1rem; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
     .btn:active { transform: scale(.98); }
-    .btn-primary { background:#0f172a; color:white; border-color:#0f172a; }
-    .card { border-radius: 1rem; border: 1px solid #e2e8f0; background: white; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .btn-primary { background:#0f172a; color:#fff; border-color:#0f172a; }
+    .card { border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
     .pill { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background:#f1f5f9; }
-    .chip { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background:#0f172a; color:white; }
+    .chip { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background:#0f172a; color:#fff; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -107,7 +107,7 @@
 
       <!-- ACQUA -->
       <div class="card p-4">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2">
           <h2 class="font-semibold">💧 Idratazione giornaliera</h2>
           <span id="waterTotal" class="chip">0 ml</span>
           <button id="resetWaterBtn" class="btn">Azzera</button>
@@ -127,7 +127,7 @@
 
     <!-- LISTA GIORNALIERA -->
     <section class="mt-6 card p-4">
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between flex-wrap gap-2">
         <h2 class="font-semibold">📒 Riepilogo del giorno</h2>
         <div class="flex items-center gap-2">
           <span id="kcalDay" class="chip">0 kcal</span>
@@ -256,13 +256,12 @@
 
     function csvQuote(field){
       const s = String(field ?? '');
-      return /[",
-;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+      // Quote se contiene virgolette, newline o separatore ;
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
     }
 
     function buildCsv(rows, sep=';'){
-      return rows.map(r => r.map(csvQuote).join(sep)).join('
-');
+      return rows.map(r => r.map(csvQuote).join(sep)).join('\n');
     }
 
     function onPresetChange(){
@@ -536,27 +535,37 @@
       } catch(e){ console.warn('OFF error', e); return null; }
     }
 
-    // === Autotest minimo (debug) ===
+    // === Autotest (debug) ===
     (function runSelfTests(){
       try{
+        // Calcolo kcal
         console.assert(calcKcal(100,150) === 150.0, 'calcKcal 100/150');
         console.assert(calcKcal(42.5,30) === 12.8, 'calcKcal 42.5/30');
-        const testCsv = buildCsv([["A;B","C \"quote\"","line
-break"]], ';');
-        console.assert(testCsv.includes('"A;B"') && testCsv.includes('"C ""quote"""') && testCsv.includes('"line
-break"'), 'CSV quoting');
-        // Preset test: seleziono "1 fetta pane ≈ 30 g" e verifico override
+        console.assert(calcKcal(0,200) === 0.0, 'calcKcal 0/200');
+        console.assert(calcKcal(null,200) === null, 'calcKcal null guard');
+
+        // CSV quoting e newline
+        const testCsv = buildCsv([["A;B","C \"quote\"","line\nbreak"]], ';');
+        console.assert(testCsv.includes('"A;B"') && testCsv.includes('"C ""quote"""') && testCsv.includes('"line\nbreak"'), 'CSV quoting');
+        const lineCount = testCsv.split('\n').length; console.assert(lineCount===2, 'CSV righe attese');
+
+        // Preset: applicazione
         const presetSel = el('presetPortion');
         if(presetSel){
           presetSel.value='{"unit":"fetta","qty":1,"grams":30}';
           onPresetChange();
           console.assert(el('unit').value==='fetta' && el('qty').value=='1' && el('gramsOverride').value=='30', 'Preset application');
         }
-        // Reset water test (non distruttivo): salvo valore, setto, resetto
+
+        // Reset acqua (non distruttivo)
         const d = todayStr(); const day0 = ensureDay(d); const prevWater = day0.waterMl; day0.waterMl = 123; store.save(db); resetWater();
         console.assert(ensureDay(d).waterMl===0, 'Reset water');
         ensureDay(d).waterMl = prevWater; store.save(db);
 
+        // escapeHtml
+        console.assert(escapeHtml('<>&"') === '&lt;&gt;&amp;&quot;', 'escapeHtml mapping');
+
+        // Badge OK
         const ft = document.querySelector('footer');
         const badge = document.createElement('div');
         badge.id='selfTest'; badge.className='mt-2 text-xs text-green-600'; badge.textContent = '✓ Autotest: OK';
