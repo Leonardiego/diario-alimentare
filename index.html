@@ -7,13 +7,14 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🥗</text></svg>">
   <style>
-    /* Mobile-first tweaks */
-    .input { @apply w-full rounded-xl border border-slate-300 px-3 py-2; }
-    .btn { @apply rounded-xl px-4 py-2 border border-slate-300 shadow-sm active:scale-[.98]; }
-    .btn-primary { @apply bg-slate-900 text-white border-slate-900; }
-    .card { @apply rounded-2xl border border-slate-200 shadow-sm bg-white; }
-    .pill { @apply rounded-full px-3 py-1 text-xs bg-slate-100; }
-    .chip { @apply rounded-full px-3 py-1 text-xs bg-slate-900 text-white; }
+    /* Nota: con CDN Tailwind, le utility funzionano via classi; le classi custom qui sotto sono CSS semplice (no @apply). */
+    .input { width: 100%; border-radius: 0.75rem; border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; }
+    .btn { border-radius: 0.75rem; padding: 0.5rem 1rem; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background:#0f172a; color:white; border-color:#0f172a; }
+    .card { border-radius: 1rem; border: 1px solid #e2e8f0; background: white; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .pill { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background:#f1f5f9; }
+    .chip { border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; background:#0f172a; color:white; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -73,6 +74,26 @@
           </div>
         </div>
 
+        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm mb-1" for="presetPortion">Preset porzione (facoltativo)</label>
+            <select id="presetPortion" class="input">
+              <option value="">— Nessun preset —</option>
+              <option value='{"unit":"fetta","qty":1,"grams":30}'>1 fetta pane ≈ 30 g</option>
+              <option value='{"unit":"tazza","qty":1,"grams":250}'>1 tazza latte ≈ 250 ml</option>
+              <option value='{"unit":"cucchiaio","qty":1,"grams":10}'>1 cucchiaio olio ≈ 10 ml</option>
+              <option value='{"unit":"cucchiaio","qty":1,"grams":15}'>1 cucchiaio riso crudo ≈ 15 g</option>
+              <option value='{"unit":"unità","qty":1,"grams":150}'>1 mela media ≈ 150 g</option>
+              <option value='{"unit":"vasetto","qty":1,"grams":125}'>1 vasetto yogurt ≈ 125 g</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm mb-1" for="gramsOverride">g/ml per kcal (stima, modificabile)</label>
+            <input id="gramsOverride" type="number" step="1" class="input" placeholder="Es. 30" />
+            <p class="text-xs text-slate-500 mt-1">Se compilato, userò questo valore per il calcolo kcal quando l'unità non è g/ml.</p>
+          </div>
+        </div>
+
         <div class="mt-4">
           <label class="block text-sm mb-1" for="notes">Note (opzionale)</label>
           <textarea id="notes" rows="2" class="input" placeholder="Es. senza zucchero, cottura al vapore, condimento olio EVO 1 cucchiaio…"></textarea>
@@ -89,6 +110,7 @@
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">💧 Idratazione giornaliera</h2>
           <span id="waterTotal" class="chip">0 ml</span>
+          <button id="resetWaterBtn" class="btn">Azzera</button>
         </div>
         <div class="mt-3 grid grid-cols-3 gap-2">
           <button data-water="250" class="btn">+250 ml</button>
@@ -105,11 +127,11 @@
 
     <!-- LISTA GIORNALIERA -->
     <section class="mt-6 card p-4">
-      <div class=\"flex items-center justify-between\">
-        <h2 class=\"font-semibold\">📒 Riepilogo del giorno<\/h2>
-        <div class=\"flex items-center gap-2\">
-          <span id=\"kcalDay\" class=\"chip\">0 kcal<\/span>
-        <\/div>
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">📒 Riepilogo del giorno</h2>
+        <div class="flex items-center gap-2">
+          <span id="kcalDay" class="chip">0 kcal</span>
+        </div>
         <div class="flex gap-2">
           <button id="copyDayBtn" class="btn">Duplica su un altro giorno</button>
           <button id="deleteDayBtn" class="btn">Svuota giorno</button>
@@ -145,7 +167,8 @@
   <script>
     // === Utility di persistenza ===
     const KEY = 'diario_alimentare_v1';
-    const defaultData = { days: {}, kcalCache: {} }; // kcalCache[name_normalized] = { kcalPer100g, timestamp } // days[yyyy-mm-dd] = { entries: [...], waterMl: number }
+    // days[yyyy-mm-dd] = { entries: [...], waterMl: number }
+    const defaultData = { days: {}, kcalCache: {} }; // kcalCache[name] = { kcalPer100g, timestamp }
 
     const store = {
       load() { try { return JSON.parse(localStorage.getItem(KEY)) || structuredClone(defaultData); } catch { return structuredClone(defaultData); } },
@@ -159,7 +182,7 @@
     const el = id => document.getElementById(id);
     const db = store.load();
 
-    // Precompilazione cibi (in italiano) — elenco compatto ma ampio; puoi aggiungerne altri dal campo libero
+    // Precompilazione cibi (in italiano)
     const FOODS = [
       // Frutta
       'Mela','Banana','Arancia','Pera','Pompelmo','Uva','Fragole','Lamponi','Mirtilli','Ciliegie','Ananas','Kiwi','Pesca','Albicocca','Susina','Melone','Anguria','Fichi','Melagrana','Avocado',
@@ -185,6 +208,16 @@
       'Acqua naturale','Acqua frizzante','Succo di frutta','Bevanda isotonica','Spremuta',
     ];
 
+    // Preset porzioni (valore indicativo per kcal)
+    const PRESETS = [
+      { label: '1 fetta pane ≈ 30 g', unit: 'fetta', qty: 1, grams: 30 },
+      { label: '1 tazza latte ≈ 250 ml', unit: 'tazza', qty: 1, grams: 250 },
+      { label: '1 cucchiaio olio ≈ 10 ml', unit: 'cucchiaio', qty: 1, grams: 10 },
+      { label: '1 cucchiaio riso crudo ≈ 15 g', unit: 'cucchiaio', qty: 1, grams: 15 },
+      { label: '1 mela media ≈ 150 g', unit: 'unità', qty: 1, grams: 150 },
+      { label: '1 vasetto yogurt ≈ 125 g', unit: 'vasetto', qty: 1, grams: 125 },
+    ];
+
     // Popola datalist
     const foodList = document.getElementById('foodList');
     FOODS.forEach(f => { const o = document.createElement('option'); o.value = f; foodList.appendChild(o); });
@@ -200,6 +233,8 @@
     });
 
     el('addEntryBtn').addEventListener('click', () => addEntry());
+    el('presetPortion').addEventListener('change', onPresetChange);
+    el('resetWaterBtn').addEventListener('click', resetWater);
     el('clearFormBtn').addEventListener('click', clearForm);
     el('deleteDayBtn').addEventListener('click', deleteDay);
     el('copyDayBtn').addEventListener('click', copyDayTo);
@@ -213,6 +248,35 @@
     el('doExportCsv').addEventListener('click', exportCsv);
     el('date').addEventListener('change', renderDay);
 
+    // === Helpers ===
+    function calcKcal(kcalPer100, grams){
+      if(typeof kcalPer100 !== 'number' || typeof grams !== 'number') return null;
+      return Number(((grams/100) * kcalPer100).toFixed(1));
+    }
+
+    function csvQuote(field){
+      const s = String(field ?? '');
+      return /[",
+;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+    }
+
+    function buildCsv(rows, sep=';'){
+      return rows.map(r => r.map(csvQuote).join(sep)).join('
+');
+    }
+
+    function onPresetChange(){
+      const sel = el('presetPortion');
+      const v = sel.value;
+      if(!v){ return; }
+      try {
+        const obj = JSON.parse(v);
+        if(obj.qty) el('qty').value = obj.qty;
+        if(obj.unit) el('unit').value = obj.unit;
+        if(obj.grams) el('gramsOverride').value = obj.grams;
+      } catch(e){ console.warn('Preset non valido', e); }
+    }
+
     // === Funzioni giornaliere ===
     function ensureDay(d){
       db.days[d] = db.days[d] || { entries: [], waterMl: 0 };
@@ -225,6 +289,17 @@
       day.waterMl += ml;
       store.save(db);
       renderDay();
+    }
+
+    function resetWater(){
+      const d = el('date').value;
+      const day = ensureDay(d);
+      if(!day) return;
+      if(confirm('Azzero l\'idratazione del giorno corrente?')){
+        day.waterMl = 0;
+        store.save(db);
+        renderDay();
+      }
     }
 
     async function addEntry(){
@@ -241,20 +316,25 @@
 
       let gramsEq = null;
       if(unit === 'g' || unit === 'ml'){
-        gramsEq = qty; // 1 ml ≈ 1 g per il calcolo calorico base. L'utente può precisare nelle note.
+        gramsEq = qty;
       } else {
-        const promptText = `Per il calcolo delle kcal, quanti grammi/ml rappresenta ${qty} ${unit}? (es. 1 fetta pane ≈ 30g)`;
-        const val = prompt(promptText, '');
-        if(val===null) return; // annullato
-        const n = parseFloat(val.replace(',', '.'));
-        if(isNaN(n) || n<=0){ alert('Valore non valido. Riprova.'); return; }
-        gramsEq = n;
+        const override = parseFloat(el('gramsOverride').value);
+        if(!isNaN(override) && override > 0){
+          gramsEq = override;
+        } else {
+          const promptText = `Per il calcolo delle kcal, quanti grammi/ml rappresenta ${qty} ${unit}? (es. 1 fetta pane ≈ 30g)`;
+          const val = prompt(promptText, '');
+          if(val===null) return;
+          const n = parseFloat(val.replace(',', '.'));
+          if(isNaN(n) || n<=0){ alert('Valore non valido. Riprova.'); return; }
+          gramsEq = n;
+        }
       }
 
       const kcalPer100 = await fetchKcalPer100g(food);
-      const kcal = kcalPer100 ? (gramsEq/100) * kcalPer100 : null;
+      const kcal = kcalPer100 ? calcKcal(kcalPer100, gramsEq) : null;
 
-      day.entries.push({ id: crypto.randomUUID(), meal, food, qty, unit, notes, kcal: kcal? Number(kcal.toFixed(1)) : null, kcalPer100: kcalPer100??null, gramsEq });
+      day.entries.push({ id: crypto.randomUUID(), meal, food, qty, unit, notes, kcal: (kcal ?? null), kcalPer100: (kcalPer100 ?? null), gramsEq });
       store.save(db);
       clearForm();
       renderDay();
@@ -264,6 +344,8 @@
       el('food').value = '';
       el('qty').value = '';
       el('notes').value = '';
+      el('gramsOverride').value = '';
+      el('presetPortion').value = '';
       el('food').focus();
     }
 
@@ -301,10 +383,7 @@
       }
 
       const byMeal = {};
-      day.entries.forEach(e => {
-        byMeal[e.meal] = byMeal[e.meal] || [];
-        byMeal[e.meal].push(e);
-      });
+      day.entries.forEach(e => { (byMeal[e.meal] ||= []).push(e); });
 
       let dayKcal = 0;
       Object.keys(byMeal).forEach(meal => {
@@ -353,11 +432,6 @@
       wrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => editEntry(btn.dataset.edit)));
     }
 
-      // Bind edit/delete
-      wrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => delEntry(btn.dataset.del)));
-      wrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => editEntry(btn.dataset.edit)));
-    }
-
     function escapeHtml(s){
       return s.replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     }
@@ -399,7 +473,10 @@
       if(!from || !to){ alert('Seleziona un intervallo di date.'); return; }
       if(from > to){ [from,to] = [to,from]; }
 
-      const rows = [['Data','Pasto','Alimento','Quantità','Unità','Note','Acqua totale del giorno (ml)']];
+      const rows = [[
+        'Data','Pasto','Alimento','Quantità','Unità','Note','Acqua totale del giorno (ml)',
+        'kcal voce','kcal/100g (fonte OFF)','g/ml usati per kcal'
+      ]];
 
       const dates = Object.keys(db.days).filter(d => d>=from && d<=to).sort();
       if(dates.length===0){ alert('Nessun dato nell\'intervallo selezionato.'); return; }
@@ -407,23 +484,19 @@
       dates.forEach(d => {
         const day = db.days[d];
         if(day.entries.length===0){
-          rows.push([d,'-','-','-','-','-',(day.waterMl||0)]);
+          rows.push([d,'-','-','-','-','-',(day.waterMl||0),'','','']);
         } else {
           day.entries.forEach((e, i) => {
-            rows.push([d, e.meal, e.food, e.qty, e.unit, e.notes||'', i===0? (day.waterMl||0) : '']);
+            rows.push([
+              d, e.meal, e.food, e.qty, e.unit, e.notes||'', i===0? (day.waterMl||0) : '',
+              (e.kcal ?? ''), (e.kcalPer100 ?? ''), (e.gramsEq ?? '')
+            ]);
           });
         }
       });
 
-      const csv = rows.map(r => r.map(field => {
-        const s = String(field ?? '');
-        if(/[",
-;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
-        return s;
-      }).join(';')).join('
-');
-
-      const blob = new Blob(["﻿"+csv], { type: 'text/csv;charset=utf-8;' });
+      const csv = buildCsv(rows, ';');
+      const blob = new Blob(["\uFEFF"+csv], { type: 'text/csv;charset=utf-8;' }); // BOM per Excel
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -452,12 +525,50 @@
         let kcal100 = prod.nutriments['energy-kcal_100g'];
         if(typeof kcal100 !== 'number'){
           const kj100 = prod.nutriments['energy_100g'] || prod.nutriments['energy-kj_100g'];
-          if(typeof kj100 === 'number') kcal100 = kj100 * 0.23900573614; // kJ -> kcal (OFF doc)
+          if(typeof kj100 === 'number') kcal100 = kj100 * 0.23900573614; // kJ -> kcal
         }
-        if(typeof kcal100 === 'number'){ kcal100 = Number(kcal100.toFixed(1)); store.setKcalCached(name, kcal100); return kcal100; }
+        if(typeof kcal100 === 'number'){
+          kcal100 = Number(kcal100.toFixed(1));
+          store.setKcalCached(name, kcal100);
+          return kcal100;
+        }
         store.setKcalCached(name, null); return null;
       } catch(e){ console.warn('OFF error', e); return null; }
     }
+
+    // === Autotest minimo (debug) ===
+    (function runSelfTests(){
+      try{
+        console.assert(calcKcal(100,150) === 150.0, 'calcKcal 100/150');
+        console.assert(calcKcal(42.5,30) === 12.8, 'calcKcal 42.5/30');
+        const testCsv = buildCsv([["A;B","C \"quote\"","line
+break"]], ';');
+        console.assert(testCsv.includes('"A;B"') && testCsv.includes('"C ""quote"""') && testCsv.includes('"line
+break"'), 'CSV quoting');
+        // Preset test: seleziono "1 fetta pane ≈ 30 g" e verifico override
+        const presetSel = el('presetPortion');
+        if(presetSel){
+          presetSel.value='{"unit":"fetta","qty":1,"grams":30}';
+          onPresetChange();
+          console.assert(el('unit').value==='fetta' && el('qty').value=='1' && el('gramsOverride').value=='30', 'Preset application');
+        }
+        // Reset water test (non distruttivo): salvo valore, setto, resetto
+        const d = todayStr(); const day0 = ensureDay(d); const prevWater = day0.waterMl; day0.waterMl = 123; store.save(db); resetWater();
+        console.assert(ensureDay(d).waterMl===0, 'Reset water');
+        ensureDay(d).waterMl = prevWater; store.save(db);
+
+        const ft = document.querySelector('footer');
+        const badge = document.createElement('div');
+        badge.id='selfTest'; badge.className='mt-2 text-xs text-green-600'; badge.textContent = '✓ Autotest: OK';
+        ft.appendChild(badge);
+      } catch(e){
+        const ft = document.querySelector('footer');
+        const badge = document.createElement('div');
+        badge.id='selfTest'; badge.className='mt-2 text-xs text-red-600'; badge.textContent = 'Autotest fallito: '+(e?.message||e);
+        ft.appendChild(badge);
+        console.error('Autotest fallito', e);
+      }
+    })();
   </script>
 </body>
 </html>
